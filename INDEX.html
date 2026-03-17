@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Técnico Aracaju</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Estilos personalizados para a barra de scroll */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+        
+        #ai-results h3 { font-size: 1.125rem; font-weight: 600; color: #475569; margin-top: 1.25rem; margin-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
+        #ai-results ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 1rem; }
+        #ai-results li { margin-bottom: 0.25rem; }
+        #ai-results p { margin-bottom: 0.75rem; line-height: 1.5; }
+        #ai-results strong { color: #1e293b; font-weight: 600; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- Cabeçalho -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-2xl shadow-sm">
+            <div>
+                <h1 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fab fa-trello text-blue-500"></i> Painel Técnico Aracaju
+                </h1>
+                <p class="text-sm text-slate-500 mt-1 flex items-center gap-2">
+                    Sincronização Trello <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                    <span id="sync-info" class="text-slate-400 font-normal">| Atualizando em 30s</span>
+                </p>
+            </div>
+            <div id="status-badge" class="mt-4 md:mt-0 px-4 py-2 bg-yellow-100 text-yellow-700 rounded-full text-sm font-medium flex items-center gap-2">
+                <i class="fas fa-circle-notch fa-spin"></i> A ler Trello...
+            </div>
+        </header>
+
+        <!-- Métricas Principais -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6" id="metrics-container">
+            <!-- Cards injetados via JS -->
+        </div>
+
+        <!-- Gráficos -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6" style="display: none;" id="charts-container">
+            <div class="glass-card rounded-2xl p-6">
+                <h2 class="text-lg font-semibold mb-4 text-slate-700 text-center">Distribuição por Etiquetas</h2>
+                <div class="relative h-64 w-full flex justify-center">
+                    <canvas id="labelsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-2xl p-6">
+                <h2 class="text-lg font-semibold mb-4 text-slate-700 text-center">Saúde da Carteira (Status)</h2>
+                <div class="relative h-64 w-full">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alertas -->
+        <div class="glass-card rounded-2xl p-6 mt-6" style="display: none;" id="alertas-container">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold text-slate-700 flex items-center gap-2">
+                    <i class="fas fa-exclamation-circle text-red-500"></i> Críticos e Pendências
+                </h2>
+                <span id="last-update" class="text-[10px] text-slate-400 uppercase tracking-widest">Aguardando dados...</span>
+            </div>
+            <div id="alertas-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+        </div>
+
+        <!-- Consultor IA -->
+        <div class="glass-card rounded-2xl p-6 mt-6">
+            <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                <h2 class="text-lg font-semibold text-slate-700 flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    IA Strategy: Churn & Crescimento
+                </h2>
+                <button id="btn-ai-insights" onclick="generateAIInsights()" class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 shadow-md hover:shadow-lg">
+                     ✨ Analisar Taxa de Churn
+                </button>
+            </div>
+            
+            <div id="ai-loading" class="hidden text-slate-500 flex flex-col items-center justify-center py-8">
+                <i class="fas fa-circle-notch fa-spin text-purple-500 text-3xl mb-3"></i> 
+                <p class="font-medium text-purple-700">Calculando métricas de churn...</p>
+            </div>
+            
+            <div id="ai-results" class="text-sm text-slate-600 bg-slate-50/50 p-4 rounded-xl border border-slate-100 min-h-[100px]">
+                <div class="flex flex-col items-center justify-center py-6 text-slate-400 text-center">
+                    <i class="fas fa-robot text-4xl mb-3 opacity-20"></i>
+                    <p class="italic max-w-md">O Gemini analisará as listas "Carteira" e "Churn" para calcular a saúde do mês.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const TRELLO_API_URL = "https://api.trello.com/1/boards/QHa9mYgf/cards?key=ad534ceab840f06dbe5cff430513ee4f&token=ATTA6a89c197143d93ea7e4061457312057fb03436b2e604a84ae8cbc444ac347b22D2BAEED4";
+        const REFRESH_INTERVAL_SEC = 30;
+
+        let labelsChartInstance = null;
+        let listsChartInstance = null;
+        let listMap = {}; 
+        let countdown = REFRESH_INTERVAL_SEC;
+
+        async function initDashboard() {
+            const statusBadge = document.getElementById('status-badge');
+            statusBadge.innerHTML = '<i class="fas fa-sync fa-spin"></i> Atualizando...';
+
+            try {
+                const urlObj = new URL(TRELLO_API_URL);
+                const key = urlObj.searchParams.get('key');
+                const token = urlObj.searchParams.get('token');
+                const boardId = urlObj.pathname.split('/')[3];
+                const listsUrl = `https://api.trello.com/1/boards/${boardId}/lists?key=${key}&token=${token}`;
+
+                const [cardsResponse, listsResponse] = await Promise.all([
+                    fetch(TRELLO_API_URL),
+                    fetch(listsUrl)
+                ]);
+                
+                if (!cardsResponse.ok) throw new Error("Erro na API");
+                const cards = await cardsResponse.json();
+                
+                if (listsResponse.ok) {
+                    const lists = await listsResponse.json();
+                    lists.forEach(l => listMap[l.id] = l.name);
+                }
+
+                processData(cards);
+                
+                statusBadge.className = "mt-4 md:mt-0 px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-medium flex items-center gap-2";
+                statusBadge.innerHTML = '<i class="fas fa-check-circle"></i> Sincronizado';
+
+                document.getElementById('charts-container').style.display = 'grid';
+                document.getElementById('alertas-container').style.display = 'block';
+                document.getElementById('last-update').textContent = `Sincronia: ${new Date().toLocaleTimeString('pt-PT')}`;
+
+                countdown = REFRESH_INTERVAL_SEC;
+            } catch (error) {
+                statusBadge.className = "mt-4 md:mt-0 px-4 py-2 bg-red-100 text-red-700 rounded-full text-sm font-medium flex items-center gap-2";
+                statusBadge.innerHTML = '<i class="fas fa-times-circle"></i> Erro de Conexão';
+            }
+        }
+
+        function startSyncTimer() {
+            setInterval(() => {
+                countdown--;
+                if (countdown <= 0) {
+                    initDashboard();
+                    countdown = REFRESH_INTERVAL_SEC;
+                }
+                document.getElementById('sync-info').textContent = `| Atualizando em ${countdown}s`;
+            }, 1000);
+        }
+
+        function processData(cards) {
+            const totalCards = cards.length;
+            let countImplantacao = 0, countPendencias = 0, countAcompanhamento = 0;
+            let countSemUso = 0, countCriticos = 0, countConcluidos = 0;
+            let countChurnMes = 0, countCarteiraTotal = 0;
+            let carteiraJaCalculada = false;
+
+            // Lógica inteligente para extrair o número exato da Carteira
+            Object.keys(listMap).forEach(listId => {
+                const name = listMap[listId].toLowerCase();
+                if (name.includes("carteira")) {
+                    // 1. Tenta extrair o número do nome da Lista (Ex: "Carteira 150" ou "Carteira (150)")
+                    const matchList = name.match(/\d+/);
+                    if (matchList) {
+                        countCarteiraTotal += parseInt(matchList[0], 10);
+                        carteiraJaCalculada = true;
+                    } else {
+                        // 2. Tenta extrair o número se houver apenas 1 cartão na lista (Ex: Cartão chamado "150")
+                        const cardsInList = cards.filter(c => c.idList === listId);
+                        if (cardsInList.length === 1) {
+                            const matchCard = cardsInList[0].name.match(/\d+/);
+                            if (matchCard) {
+                                countCarteiraTotal += parseInt(matchCard[0], 10);
+                                carteiraJaCalculada = true;
+                            }
+                        }
+                    }
+                }
+            });
+
+            const listaAlertas = [];
+
+            cards.forEach(c => {
+                const listName = (listMap[c.idList] || "").toLowerCase();
+
+                // Lógica de contagem por Listas
+                if (listName.includes("churn")) {
+                    countChurnMes++;
+                } else if (listName.includes("carteira")) {
+                    // 3. Se não apanhou nenhum número escrito, conta a quantidade de cartões
+                    if (!carteiraJaCalculada) {
+                        countCarteiraTotal++;
+                    }
+                } else if (listName.includes("implantação") || listName.includes("implantacao")) {
+                    countImplantacao++;
+                } else if (listName.includes("pendência") || listName.includes("pendencia")) {
+                    countPendencias++;
+                    listaAlertas.push({ data: c, tipo: 'pendencia' });
+                } else if (listName.includes("acompanhamento")) {
+                    countAcompanhamento++;
+                } else if (listName.includes("uso")) {
+                    countSemUso++;
+                } else if (listName.includes("crítico") || listName.includes("critico") || listName.includes("cancelamento")) {
+                    countCriticos++;
+                    listaAlertas.push({ data: c, tipo: 'critico' });
+                } else if (listName.includes("concluído") || listName.includes("concluido")) {
+                    countConcluidos++;
+                }
+            });
+
+            // Cálculo da Taxa de Churn
+            const churnRate = countCarteiraTotal > 0 ? ((countChurnMes / countCarteiraTotal) * 100).toFixed(2) : 0;
+
+            renderMetrics([
+                { title: "Total de Clientes", value: totalCards, icon: "fa-users", color: "blue" },
+                { title: "Total Carteira", value: countCarteiraTotal, icon: "fa-address-book", color: "blue" },
+                { title: "Churn do Mês (%)", value: `${churnRate}%`, icon: "fa-chart-line", color: churnRate > 5 ? "red" : "orange" },
+                { title: "Em Implantação", value: countImplantacao, icon: "fa-rocket", color: "purple" },
+                { title: "Com Pendências", value: countPendencias, icon: "fa-clock", color: "orange" },
+                { title: "Em Acompanhamento", value: countAcompanhamento, icon: "fa-eye", color: "sky" },
+                { title: "Sem Uso", value: countSemUso, icon: "fa-bed", color: "gray" },
+                { title: "Críticos (Risco)", value: countCriticos, icon: "fa-fire", color: "red" },
+                { title: "Concluídos", value: countConcluidos, icon: "fa-check-circle", color: "green" }
+            ]);
+
+            const statusCounts = {
+                "Total Trello": totalCards, "Churn": countChurnMes, "Carteira": countCarteiraTotal,
+                "Implantação": countImplantacao, "Pendências": countPendencias,
+                "Acompanhamento": countAcompanhamento, "Sem Uso": countSemUso,
+                "Críticos": countCriticos, "Concluídos": countConcluidos
+            };
+
+            const labelCounts = {}, labelColors = {};
+            cards.forEach(c => {
+                if (c.labels && c.labels.length > 0) {
+                    c.labels.forEach(l => {
+                        // Extrai a cor base (Trello usa 'green', mas às vezes 'green_dark')
+                        const baseColor = l.color ? l.color.split('_')[0] : null;
+                        const ptColors = { green: 'Verde', yellow: 'Amarelo', orange: 'Laranja', red: 'Vermelho', purple: 'Roxo', blue: 'Azul', sky: 'Azul Claro', lime: 'Verde Lima', pink: 'Rosa', black: 'Preto' };
+                        
+                        // Define o nome: usa o nome da etiqueta ou o nome da cor em PT
+                        const defaultName = baseColor ? `Cor: ${ptColors[baseColor] || baseColor}` : 'Sem Nome';
+                        const name = l.name || defaultName;
+                        
+                        labelCounts[name] = (labelCounts[name] || 0) + 1;
+                        
+                        // Mapeia as cores hexadecimais correspondentes ao Trello
+                        const colorMap = { green: '#22c55e', yellow: '#eab308', orange: '#f97316', red: '#ef4444', purple: '#a855f7', blue: '#3b82f6', sky: '#0ea5e9', lime: '#84cc16', pink: '#ec4899', black: '#1e293b' };
+                        labelColors[name] = baseColor ? (colorMap[baseColor] || '#cbd5e1') : '#cbd5e1';
+                    });
+                }
+            });
+
+            renderCharts(labelCounts, labelColors, statusCounts);
+            renderAlertas(listaAlertas);
+            window.dashboardData = { statusCounts, labelCounts, churnRate, countChurnMes, countCarteiraTotal };
+        }
+
+        function renderAlertas(lista) {
+            const container = document.getElementById('alertas-list');
+            container.innerHTML = '';
+            if (lista.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-center text-slate-400 py-6">Sem alertas críticos.</div>`;
+                return;
+            }
+            lista.forEach(itemInfo => {
+                const item = itemInfo.data, tipo = itemInfo.tipo;
+                const isCritico = tipo === 'critico';
+                container.innerHTML += `
+                    <div class="border ${isCritico ? 'border-red-200 bg-red-50/30' : 'border-slate-200 bg-white'} rounded-xl p-4 shadow-sm relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full ${isCritico ? 'bg-red-500' : 'bg-orange-400'}"></div>
+                        <h3 class="font-bold text-slate-800 text-sm mb-2">${item.name}</h3>
+                        <div class="flex justify-between items-center text-[10px] font-bold uppercase">
+                            <span class="${isCritico ? 'text-red-600' : 'text-orange-600'}">${isCritico ? 'RISCO CHURN' : 'PENDÊNCIA'}</span>
+                            <a href="${item.url}" target="_blank" class="text-blue-500">Abrir <i class="fas fa-external-link-alt"></i></a>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function renderMetrics(metrics) {
+            const container = document.getElementById('metrics-container');
+            container.innerHTML = '';
+            metrics.forEach(m => {
+                const colorClasses = { 
+                    red: "bg-red-50 text-red-600 border-red-100", 
+                    orange: "bg-orange-50 text-orange-600 border-orange-100",
+                    blue: "bg-blue-50 text-blue-600 border-blue-100",
+                    purple: "bg-purple-50 text-purple-600 border-purple-100",
+                    green: "bg-green-50 text-green-600 border-green-100",
+                    gray: "bg-slate-50 text-slate-600 border-slate-100",
+                    sky: "bg-sky-50 text-sky-600 border-sky-100"
+                };
+                container.innerHTML += `
+                    <div class="glass-card border ${colorClasses[m.color]} rounded-2xl p-5 flex items-center gap-4 transition-transform hover:scale-105">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg ${colorClasses[m.color].split(' ')[1]}"><i class="fas ${m.icon}"></i></div>
+                        <div><p class="text-[10px] font-bold uppercase opacity-60 tracking-tighter">${m.title}</p><h3 class="text-xl font-black">${m.value}</h3></div>
+                    </div>`;
+            });
+        }
+
+        function renderCharts(labelCounts, labelColors, statusCounts) {
+            const ctxLabels = document.getElementById('labelsChart').getContext('2d');
+            if (labelsChartInstance) labelsChartInstance.destroy();
+            labelsChartInstance = new Chart(ctxLabels, {
+                type: 'doughnut',
+                data: { labels: Object.keys(labelCounts), datasets: [{ data: Object.values(labelCounts), backgroundColor: Object.values(labelColors) }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+            });
+
+            // Cores específicas para cada coluna do gráfico de Saúde da Carteira
+            const statusColors = {
+                "Total Trello": "#94a3b8", "Churn": "#ef4444", "Carteira": "#3b82f6",
+                "Implantação": "#a855f7", "Pendências": "#f97316",
+                "Acompanhamento": "#0ea5e9", "Sem Uso": "#64748b",
+                "Críticos": "#b91c1c", "Concluídos": "#22c55e"
+            };
+
+            const ctxStatus = document.getElementById('statusChart').getContext('2d');
+            if (listsChartInstance) listsChartInstance.destroy();
+            listsChartInstance = new Chart(ctxStatus, {
+                type: 'bar',
+                data: { 
+                    labels: Object.keys(statusCounts), 
+                    datasets: [{ 
+                        data: Object.values(statusCounts), 
+                        backgroundColor: Object.keys(statusCounts).map(key => statusColors[key] || '#6366f1'),
+                        borderRadius: 4
+                    }] 
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+            });
+        }
+
+        const apiKey = ""; 
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            let delay = 1000;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) throw new Error("Retry");
+                    return await response.json();
+                } catch (e) {
+                    if (i === maxRetries - 1) throw e;
+                    await new Promise(r => setTimeout(r, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        async function generateAIInsights() {
+            const btn = document.getElementById('btn-ai-insights'), loading = document.getElementById('ai-loading'), results = document.getElementById('ai-results');
+            if (!window.dashboardData) return;
+            btn.disabled = true; loading.classList.remove('hidden');
+            try {
+                const prompt = `Analise os dados de CS da equipa Aracaju: 
+                - Churn Rate: ${window.dashboardData.churnRate}%, Churn do Mês: ${window.dashboardData.countChurnMes} clientes, Carteira Total: ${window.dashboardData.countCarteiraTotal}. 
+                - Status Geral: ${JSON.stringify(window.dashboardData.statusCounts)}.
+                - Etiquetas: ${JSON.stringify(window.dashboardData.labelCounts)}.
+
+                Gera um relatório executivo em formato HTML (usa h3 para títulos, p para texto e ul/li para listas) contendo:
+                1. Um diagnóstico geral da saúde da operação (incluindo o impacto do churn atual).
+                2. Uma análise detalhada dos riscos (focando nos críticos, pendências e taxa de churn).
+                3. Três recomendações estratégicas imediatas para reduzir o churn, acelerar implantações e manter a meta de retenção.
+                
+                Responda diretamente com o código HTML, sem blocos de código Markdown.`;
+                
+                const data = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (aiText) results.innerHTML = aiText.replace(/```html/gi, '').replace(/```/g, '').trim();
+            } catch (error) { results.innerHTML = `<p class="text-red-500 text-center">Erro ao consultar IA.</p>`; }
+            finally { btn.disabled = false; loading.classList.add('hidden'); }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initDashboard();
+            startSyncTimer();
+        });
+    </script>
+</body>
+</html>
